@@ -1,0 +1,149 @@
+// File: prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  username     String    @unique
+  email        String?   @unique
+  passwordHash String
+  role         String    // ADMIN, KASIR, DAPUR, RUNNER
+  outletId     String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  outlet       Outlet?   @relation(fields: [outletId], references: [id])
+}
+
+model Outlet {
+  id          String     @id @default(uuid())
+  name        String
+  address     String
+  phone       String?
+  taxRate     Float      @default(10.0) // percentage
+  serviceRate Float      @default(5.0)  // percentage
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  users       User[]
+  tables      Table[]
+  categories  Category[]
+  orders      Order[]
+}
+
+model Table {
+  id          String   @id @default(uuid())
+  outletId    String
+  tableNumber String
+  qrToken     String   @unique
+  capacity    Int      @default(4)
+  status      String   @default("AVAILABLE") // AVAILABLE, OCCUPIED, RESERVED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  outlet      Outlet   @relation(fields: [outletId], references: [id])
+  orders      Order[]
+}
+
+model Category {
+  id        String     @id @default(uuid())
+  outletId  String
+  name      String
+  sortOrder Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  outlet    Outlet     @relation(fields: [outletId], references: [id])
+  menuItems MenuItem[]
+}
+
+model MenuItem {
+  id          String      @id @default(uuid())
+  categoryId  String
+  name        String
+  description String?
+  price       Float
+  imageUrl    String?
+  isAvailable Boolean     @default(true)
+  stock       Int         @default(100)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  category    Category    @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id            String      @id @default(uuid())
+  orderNumber   String      @unique
+  tableId       String
+  outletId      String
+  customerName  String
+  customerPhone String?
+  status        String      @default("PENDING_PAYMENT") // PENDING_PAYMENT, PAID, QUEUE_KITCHEN, COOKING, READY, DELIVERING, COMPLETED, CANCELLED
+  paymentMethod String      // QRIS, KASIR
+  paymentStatus String      @default("UNPAID")          // UNPAID, PAID, FAILED, REFUNDED
+  subtotal      Float
+  tax           Float
+  serviceCharge Float
+  discount      Float       @default(0.0)
+  total         Float
+  notes         String?
+  cancelReason  String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  table         Table       @relation(fields: [tableId], references: [id])
+  outlet        Outlet      @relation(fields: [outletId], references: [id])
+  items         OrderItem[]
+  payments      Payment[]
+}
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  orderId    String
+  menuItemId String
+  quantity   Int
+  unitPrice  Float
+  subtotal   Float
+  notes      String?
+  createdAt  DateTime @default(now())
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+}
+
+model Payment {
+  id          String    @id @default(uuid())
+  orderId     String
+  method      String    // QRIS, CASH, EDC
+  gatewayRef  String?
+  status      String    // PENDING, SUCCESS, FAILED
+  qrCodeUrl   String?
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Promo {
+  id            String    @id @default(uuid())
+  code          String    @unique
+  discountType  String    // PERCENTAGE, FIXED
+  discountValue Float
+  minSpend      Float     @default(0.0)
+  validUntil    DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  target    String?
+  details   String?
+  createdAt DateTime @default(now())
+}

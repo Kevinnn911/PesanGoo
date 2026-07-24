@@ -1,0 +1,557 @@
+PRODUCT REQUIREMENTS DOCUMENT
+
+RestoQ
+
+Smart Restaurant Ordering & Kitchen Operations Platform
+
+Sistem Pemesanan Berbasis QR Code, PWA Real-time untuk Operasional Restoran Cepat Saji
+
+  -------------------------- --------------------------------------------
+  Versi Dokumen              1.0
+
+  Status                     Draft untuk Review
+
+  Tanggal                    24 Juli 2026
+
+  Disusun untuk              Tim Produk & Engineering
+
+  Platform                   Web PWA (Android & iOS installable)
+  -------------------------- --------------------------------------------
+
+Daftar Isi
+
+1. Ringkasan Eksekutif
+
+RestoQ adalah platform pemesanan restoran berbasis Progressive Web App (PWA) yang memungkinkan pelanggan memesan makanan dan minuman langsung dari meja melalui pemindaian QR Code, tanpa perlu instalasi aplikasi maupun input nomor meja secara manual. Sistem dirancang menyerupai alur operasional restoran cepat saji modern seperti Mie Gacoan, dengan orkestrasi real-time antara pelanggan, kasir, dapur, dan runner pengantar makanan.
+
+Platform terdiri dari satu aplikasi pelanggan (customer-facing PWA) dan empat dashboard internal berbasis role (Admin, Kasir, Dapur/KDS, Runner), seluruhnya terhubung melalui backend terpusat dengan komunikasi real-time (WebSocket). Sistem mendukung pembayaran QRIS dinamis maupun pembayaran tunai/kasir, serta menyediakan pelaporan penjualan, manajemen menu, dan manajemen multi-outlet bagi Admin.
+
+Dokumen ini menjelaskan kebutuhan produk (product requirements) secara menyeluruh: tujuan bisnis, ruang lingkup, peran pengguna, alur kerja, kebutuhan fungsional dan non-fungsional, arsitektur teknis yang direkomendasikan, serta metrik keberhasilan, sebagai acuan bagi tim desain dan engineering dalam membangun produk.
+
+2. Latar Belakang & Tujuan
+
+2.1 Latar Belakang
+
+Restoran dengan volume transaksi tinggi dan antrean panjang (mis. resto mie/cepat saji) menghadapi tantangan: antrean pemesanan di kasir, kesalahan pencatatan pesanan manual, keterlambatan informasi antara kasir-dapur-pengantar, serta minimnya data real-time untuk pengambilan keputusan operasional. Pemesanan mandiri via QR Code terbukti mempercepat waktu layanan, mengurangi human error, dan meningkatkan kapasitas turnover meja.
+
+2.2 Tujuan Produk
+
+-   Memungkinkan pelanggan memesan mandiri dari meja tanpa antre di kasir, dengan identifikasi meja otomatis melalui QR Code unik.
+
+-   Mempercepat alur informasi pesanan dari pelanggan ke dapur dan pengantar secara real-time tanpa perlu refresh halaman.
+
+-   Mengurangi kesalahan pesanan dan miskomunikasi antara pelanggan, kasir, dan dapur.
+
+-   Menyediakan data operasional (penjualan, menu terlaris, performa harian) secara akurat dan real-time bagi manajemen.
+
+-   Mendukung skalabilitas untuk ratusan meja, ratusan item menu, dan ribuan transaksi per hari pada satu atau banyak outlet.
+
+2.3 Tujuan Bisnis
+
+-   Meningkatkan kecepatan layanan (table turnover) dan kapasitas transaksi per jam.
+
+-   Menurunkan biaya operasional kasir dan potensi kebocoran transaksi manual.
+
+-   Meningkatkan pengalaman pelanggan (self-service, transparansi status pesanan).
+
+-   Menyediakan basis data untuk pengambilan keputusan (menu, promo, staffing) berbasis data.
+
+3. Ruang Lingkup
+
+3.1 Dalam Lingkup (In Scope)
+
+-   Customer PWA: scan QR meja, katalog menu, keranjang, catatan khusus, checkout, pembayaran QRIS/kasir, tracking status pesanan real-time.
+
+-   Dashboard Kasir: manajemen pesanan masuk, konfirmasi pembayaran tunai, cetak struk, pembatalan transaksi, riwayat penjualan.
+
+-   Kitchen Display System (KDS) untuk Dapur: antrean pesanan real-time, kontrol status masak per pesanan.
+
+-   Dashboard Runner: daftar pesanan siap antar berdasarkan meja tujuan, konfirmasi pengantaran.
+
+-   Dashboard Admin: manajemen menu/kategori/stok/harga/foto, manajemen meja & QR Code, manajemen pengguna & role, laporan & analitik, pengaturan pajak/service charge/promo/voucher/diskon, multi-outlet.
+
+-   Integrasi pembayaran QRIS dinamis (payment gateway pihak ketiga) dengan webhook konfirmasi otomatis.
+
+-   Notifikasi real-time lintas dashboard, dukungan cetak struk via printer thermal (Bluetooth/LAN).
+
+-   Ekspor laporan ke PDF dan Excel.
+
+-   PWA installable (Android & iOS) dengan mode gelap dan desain mobile-first.
+
+3.2 Di Luar Lingkup (Out of Scope) — Fase 1
+
+-   Aplikasi native iOS/Android terpisah (di luar kapabilitas PWA).
+
+-   Sistem reservasi meja / booking di muka.
+
+-   Program loyalitas/poin pelanggan lintas kunjungan (dijadwalkan fase berikutnya).
+
+-   Integrasi dengan platform pesan-antar pihak ketiga (GoFood, GrabFood, ShopeeFood).
+
+-   Modul akuntansi/keuangan penuh (hanya laporan penjualan dasar disediakan).
+
+4. Target Pengguna & Peran (Roles)
+
+Sistem melayani lima jenis pengguna dengan hak akses dan antarmuka berbeda:
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------
+  Role                Deskripsi Singkat                                     Akses Utama
+  ------------------- ----------------------------------------------------- ---------------------------------------------------------------------------------
+  Pelanggan (Guest)   Tamu yang duduk di meja restoran, tanpa login/akun.   Scan QR, lihat menu, checkout, tracking status pesanan sendiri
+
+  Admin               Pemilik/manajer restoran dengan akses penuh sistem.   Menu, meja, QR, user & role, laporan, pajak/promo, multi-outlet
+
+  Kasir               Staf yang menangani pembayaran & transaksi.           Semua pesanan, konfirmasi bayar tunai, cetak struk, batalkan transaksi, riwayat
+
+  Dapur (Kitchen)     Staf dapur yang memasak pesanan.                      KDS: antrean pesanan, tombol Mulai Masak / Selesai
+
+  Runner              Staf pengantar makanan ke meja.                       Daftar pesanan siap antar, tombol Sudah Diantar
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+5. Alur Pengguna (User Flow)
+
+5.1 Alur Pelanggan
+
+1.  Pelanggan duduk di meja dan memindai QR Code unik yang tertempel di meja.
+
+2.  Browser otomatis membuka Customer PWA dengan parameter nomor meja terbaca dari QR (tanpa input manual).
+
+3.  Pelanggan menjelajah menu berdasarkan kategori (Makanan, Minuman, Cemilan, Promo, dll.), melihat foto, deskripsi, harga, dan status ketersediaan; dapat mencari menu via search bar.
+
+4.  Pelanggan menambahkan item ke keranjang, mengatur jumlah, dan menambahkan catatan khusus (mis. "tanpa bawang", "level pedas 3").
+
+5.  Pelanggan menuju halaman checkout, mengisi nama (wajib) dan nomor HP (opsional).
+
+6.  Pelanggan memilih metode pembayaran: QRIS atau Bayar di Kasir.
+
+7.  Jika QRIS: sistem menampilkan kode QRIS dinamis; setelah pembayaran berhasil, webhook payment gateway mengubah status pesanan menjadi Paid secara otomatis.
+
+8.  Jika Bayar di Kasir: status pesanan menjadi Pending Payment dan pelanggan diarahkan menunggu konfirmasi kasir.
+
+9.  Pelanggan dapat memantau status pesanannya secara real-time pada halaman tracking (Pending Payment → Paid → Queue Kitchen → Cooking → Ready → Delivering → Completed).
+
+5.2 Alur Kasir
+
+10. Pesanan baru (baik QRIS maupun bayar di kasir) muncul secara real-time di dashboard Kasir.
+
+11. Untuk pesanan Bayar di Kasir, kasir memverifikasi pembayaran tunai/EDC dan menekan tombol konfirmasi, mengubah status menjadi Paid.
+
+12. Pesanan Paid otomatis diteruskan ke antrean dapur (Queue Kitchen).
+
+13. Kasir dapat mencetak struk, membatalkan transaksi (dengan alasan), dan meninjau riwayat penjualan harian.
+
+5.3 Alur Dapur (KDS)
+
+14. Pesanan berstatus Queue Kitchen tampil di KDS terurut berdasarkan waktu masuk, lengkap dengan nomor meja, nomor pesanan, daftar item, jumlah, dan catatan pelanggan.
+
+15. Staf dapur menekan "Mulai Masak" → status berubah menjadi Cooking.
+
+16. Setelah selesai, staf menekan "Selesai" → status berubah menjadi Ready, dan pesanan otomatis berpindah ke dashboard Runner.
+
+5.4 Alur Runner
+
+17. Dashboard Runner menampilkan daftar pesanan berstatus Ready, dengan nomor meja tujuan secara jelas dan mencolok.
+
+18. Runner mengantar pesanan ke meja; status dapat diubah menjadi Delivering saat dalam perjalanan (opsional/otomatis).
+
+19. Setelah makanan diterima pelanggan, runner menekan "Sudah Diantar" → status berubah menjadi Completed.
+
+5.5 Alur Admin
+
+20. Admin mengelola data master: kategori, menu, harga, stok, foto, status tersedia/habis.
+
+21. Admin mengelola data meja dan men-generate/mengunduh QR Code per meja (per outlet).
+
+22. Admin mengelola pengguna dan penugasan role (Admin, Kasir, Dapur, Runner).
+
+23. Admin memantau laporan penjualan, omzet, menu terlaris, dan statistik harian/mingguan/bulanan; mengekspor laporan ke PDF/Excel.
+
+24. Admin mengatur pajak, service charge, promo, voucher, diskon, dan konfigurasi multi-outlet.
+
+6. Alur Status Pesanan (Order Status Flow)
+
+Setiap pesanan bergerak melalui status berikut secara linear (dengan kemungkinan Cancelled pada tahap-tahap awal):
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------
+  #   Status            Deskripsi                                                                                     Dipicu Oleh
+  --- ----------------- --------------------------------------------------------------------------------------------- ---------------------------------
+  1   Pending Payment   Pesanan dibuat, menunggu pembayaran (khusus metode Bayar di Kasir) atau menunggu scan QRIS.   Pelanggan checkout
+
+  2   Paid              Pembayaran terkonfirmasi (via webhook QRIS otomatis atau konfirmasi manual kasir).            Payment gateway / Kasir
+
+  3   Queue Kitchen     Pesanan masuk antrean dapur, menunggu dimasak.                                                Sistem (otomatis setelah Paid)
+
+  4   Cooking           Dapur sedang memproses pesanan.                                                               Staf Dapur (tombol Mulai Masak)
+
+  5   Ready             Pesanan selesai dimasak, siap diantar.                                                        Staf Dapur (tombol Selesai)
+
+  6   Delivering        Pesanan sedang diantar runner ke meja.                                                        Runner
+
+  7   Completed         Pesanan diterima pelanggan di meja.                                                           Runner (tombol Sudah Diantar)
+
+  8   Cancelled         Pesanan dibatalkan (sebelum/at Pending atau Paid awal).                                       Kasir / Admin
+  -----------------------------------------------------------------------------------------------------------------------------------------------------
+
+Catatan: Perubahan status pada setiap tahap dipublikasikan secara real-time ke seluruh dashboard terkait (pelanggan, kasir, dapur, runner, admin) melalui WebSocket, tanpa memerlukan refresh manual.
+
+7. Kebutuhan Fungsional
+
+7.1 Customer PWA
+
+7.1.1 Identifikasi Meja via QR Code
+
+-   Setiap meja memiliki QR Code unik yang membawa parameter identitas meja (mis. ID meja & outlet) di dalam URL.
+
+-   Saat dipindai, PWA otomatis membaca nomor meja dari URL tanpa input manual dan menampilkannya di header aplikasi sepanjang sesi.
+
+-   QR Code kedaluwarsa/invalid menampilkan pesan error dan opsi hubungi staf.
+
+7.1.2 Katalog Menu
+
+-   Menu ditampilkan berdasarkan kategori (tab/filter), dengan foto, nama, deskripsi singkat, harga, dan status Tersedia/Habis.
+
+-   Item berstatus Habis ditampilkan redup dan tidak dapat ditambahkan ke keranjang.
+
+-   Fitur pencarian menu (search bar) dengan hasil real-time saat mengetik.
+
+7.1.3 Keranjang & Catatan Khusus
+
+-   Pelanggan dapat mengatur jumlah tiap item (+/-), menghapus item, dan melihat subtotal berjalan.
+
+-   Setiap item dapat memiliki catatan bebas teks (mis. "tanpa bawang") dan/atau pilihan level pedas (jika berlaku) yang tersimpan per item pesanan.
+
+7.1.4 Checkout & Pembayaran
+
+-   Form checkout meminta Nama (wajib) dan Nomor HP (opsional).
+
+-   Pilihan metode pembayaran: QRIS (dinamis, generate otomatis sesuai nominal) atau Bayar di Kasir.
+
+-   Untuk QRIS: tampilkan kode QR beserta hitung mundur batas waktu pembayaran; status pembayaran diperbarui otomatis via webhook tanpa refresh.
+
+-   Untuk Bayar di Kasir: tampilkan instruksi "Silakan bayar di kasir dengan menyebutkan nomor pesanan".
+
+7.1.5 Tracking Pesanan
+
+-   Halaman status real-time menampilkan progres pesanan sesuai 8 status pada Bagian 6, dengan estimasi visual (progress bar/timeline).
+
+-   Notifikasi push/in-app (jika didukung browser) saat status berubah signifikan (Paid, Ready, Completed).
+
+7.2 Dashboard Kasir
+
+-   Daftar seluruh pesanan aktif dengan filter status, meja, dan waktu.
+
+-   Konfirmasi pembayaran untuk pesanan metode Bayar di Kasir (ubah Pending Payment → Paid).
+
+-   Cetak struk pesanan (thermal printer Bluetooth/LAN).
+
+-   Pembatalan transaksi dengan input alasan pembatalan (wajib).
+
+-   Riwayat penjualan (harian) dengan pencarian berdasarkan nomor pesanan/meja/tanggal.
+
+7.3 Kitchen Display System (Dapur)
+
+-   Tampilan antrean real-time, terurut FIFO berdasarkan waktu pesanan masuk (Queue Kitchen).
+
+-   Setiap kartu pesanan menampilkan: nomor meja, nomor pesanan, daftar menu & jumlah, catatan pelanggan, waktu tunggu berjalan.
+
+-   Tombol aksi: "Mulai Masak" (→ Cooking) dan "Selesai" (→ Ready).
+
+-   Highlight visual/warna untuk pesanan yang telah menunggu melewati batas waktu tertentu (mis. > 10 menit).
+
+7.4 Dashboard Runner
+
+-   Menampilkan hanya pesanan berstatus Ready, dengan nomor meja tujuan dalam tampilan besar dan jelas.
+
+-   Tombol "Sudah Diantar" mengubah status menjadi Completed dan menghapus kartu dari daftar aktif.
+
+-   Tampilan dioptimalkan untuk dilihat sekilas (glanceable), cocok untuk perangkat genggam sambil berjalan.
+
+7.5 Dashboard Admin
+
+7.5.1 Manajemen Menu & Kategori
+
+-   CRUD kategori dan item menu, termasuk unggah/ubah foto, harga, deskripsi, dan status Tersedia/Habis (toggle cepat).
+
+-   Manajemen stok dasar (opsional: auto-set Habis saat stok = 0).
+
+7.5.2 Manajemen Meja & QR Code
+
+-   CRUD data meja (nomor meja, kapasitas, outlet).
+
+-   Generate QR Code unik per meja dan unduh (PNG/PDF) untuk dicetak, individual maupun massal (bulk export).
+
+7.5.3 Manajemen Pengguna & RBAC
+
+-   CRUD akun staf dengan penetapan role: Admin, Kasir, Dapur, Runner.
+
+-   Reset password, nonaktifkan akun, log aktivitas dasar.
+
+7.5.4 Laporan & Analitik
+
+-   Dashboard omzet, jumlah transaksi, menu terlaris, dan rata-rata nilai pesanan.
+
+-   Statistik harian, mingguan, bulanan dengan grafik tren.
+
+-   Ekspor laporan ke PDF dan Excel.
+
+7.5.5 Pengaturan Bisnis
+
+-   Konfigurasi pajak (%) dan service charge (%) yang diterapkan otomatis pada checkout.
+
+-   Manajemen promo, voucher, dan diskon (nominal/persentase, periode berlaku, syarat minimum).
+
+-   Manajemen multi-outlet: data master menu/meja/laporan dapat dipisah atau dibagikan per outlet.
+
+8. Kebutuhan Real-time & Notifikasi
+
+-   Seluruh perubahan status pesanan disebarkan secara real-time via WebSocket (atau Firebase Realtime Database/Firestore) ke seluruh klien yang relevan (pelanggan pemilik pesanan, kasir, dapur, runner, admin).
+
+-   Dashboard internal (Kasir, Dapur, Runner, Admin) menerima notifikasi dalam-aplikasi (in-app banner/sound) untuk pesanan baru dan perubahan status penting.
+
+-   Mekanisme reconnect otomatis jika koneksi WebSocket terputus, dengan sinkronisasi ulang state pesanan saat koneksi pulih.
+
+-   Fallback polling ringan jika WebSocket tidak tersedia (mis. jaringan restriktif).
+
+9. Kebutuhan Non-Fungsional
+
+9.1 Performa & Skalabilitas
+
+-   Mampu menangani ratusan meja aktif, ratusan item menu, dan ribuan transaksi per hari per outlet dengan waktu respons API < 300ms (p95) pada beban normal.
+
+-   Waktu muat awal Customer PWA < 2.5 detik pada koneksi 4G (target Lighthouse Performance ≥ 90).
+
+-   Arsitektur backend stateless dan horizontal-scalable di belakang load balancer.
+
+9.2 Keamanan
+
+-   Autentikasi JWT untuk seluruh akun staf (Admin, Kasir, Dapur, Runner), dengan Role-Based Access Control (RBAC) yang membatasi endpoint dan tampilan sesuai role.
+
+-   Endpoint checkout/pembayaran pelanggan dilindungi rate-limiting dan validasi input untuk mencegah abuse/spam order.
+
+-   Endpoint webhook payment gateway diverifikasi menggunakan signature/HMAC sesuai standar provider.
+
+-   Seluruh trafik menggunakan HTTPS/TLS; data sensitif (kredensial, token) dienkripsi saat disimpan.
+
+-   Audit log untuk aksi kritikal (pembatalan transaksi, perubahan harga, penghapusan pengguna).
+
+9.3 Ketersediaan & Keandalan
+
+-   Target uptime sistem 99.5% pada jam operasional restoran.
+
+-   Idempotensi pada webhook pembayaran untuk mencegah duplikasi status akibat retry dari payment gateway.
+
+9.4 Usability & Aksesibilitas
+
+-   Desain mobile-first, minimalis, cepat, dan mudah digunakan tanpa perlu pelatihan bagi pelanggan awam.
+
+-   Mendukung mode gelap (dark mode) di seluruh aplikasi dan dashboard.
+
+-   Kontras warna dan ukuran tap-target sesuai pedoman aksesibilitas dasar (WCAG AA untuk elemen interaktif utama).
+
+9.5 Kompatibilitas PWA
+
+-   Dapat diinstal (Add to Home Screen) pada Android (Chrome) dan iOS (Safari), dengan ikon, splash screen, dan manifest sesuai standar PWA.
+
+-   Mendukung mode offline dasar (menampilkan pesan status koneksi) menggunakan service worker; transaksi tetap memerlukan koneksi aktif.
+
+10. Arsitektur Sistem & Tumpukan Teknologi
+
+10.1 Ringkasan Arsitektur
+
+Sistem menggunakan arsitektur client-server dengan backend REST API terpusat dan lapisan komunikasi real-time terpisah (WebSocket) untuk sinkronisasi status pesanan lintas dashboard. Empat aplikasi klien (Customer PWA, Kasir, Dapur/KDS, Runner) dan satu panel Admin mengonsumsi API dan channel real-time yang sama, dibedakan melalui otorisasi berbasis role.
+
+10.2 Tumpukan Teknologi yang Direkomendasikan
+
+  --------------------------------------------------------------------------------------------------------------
+  Layer                Teknologi
+  -------------------- -----------------------------------------------------------------------------------------
+  Frontend             Next.js 15 (App Router) + React + TypeScript, Tailwind CSS, Shadcn UI
+
+  Backend              Node.js — Express atau NestJS (REST API + WebSocket Gateway)
+
+  Realtime             WebSocket (Socket.IO / native WS) atau Firebase Realtime Database / Firestore
+
+  Database             PostgreSQL 16 dengan Prisma ORM
+
+  Autentikasi          JWT + Role-Based Access Control (RBAC)
+
+  Pembayaran QRIS      Midtrans / Xendit / Tripay (payment gateway pihak ketiga, webhook)
+
+  Penyimpanan Gambar   Supabase Storage atau Cloudinary
+
+  Cetak Struk          Integrasi printer thermal via Bluetooth (Web Bluetooth API) atau LAN (ESC/POS over TCP)
+
+  Ekspor Laporan       PDF (mis. pdfmake/Puppeteer) dan Excel (mis. exceljs)
+
+  PWA                  Web App Manifest + Service Worker (mis. next-pwa)
+
+  Hosting/Infra        Containerized deployment (mis. Docker), reverse proxy, CDN untuk aset statis
+  --------------------------------------------------------------------------------------------------------------
+
+10.3 Pertimbangan Skalabilitas
+
+-   Koneksi WebSocket dikelompokkan per outlet/room agar broadcast status pesanan efisien pada skenario multi-outlet.
+
+-   Query laporan berat (agregasi omzet/statistik) menggunakan indexing yang tepat dan/atau tabel ringkasan (materialized view) agar tidak membebani transaksi live.
+
+-   Caching untuk katalog menu (jarang berubah) guna mengurangi beban database saat trafik tinggi.
+
+11. Ringkasan Model Data (Entitas Utama)
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Entitas                     Atribut Kunci
+  --------------------------- -------------------------------------------------------------------------------------------------------------------------------------------------
+  Outlet                      id, nama, alamat, pengaturan pajak/service charge
+
+  Meja (Table)                id, outlet_id, nomor_meja, kode_qr, status
+
+  Kategori Menu               id, outlet_id, nama, urutan_tampil
+
+  Menu Item                   id, kategori_id, nama, deskripsi, harga, foto_url, status_tersedia, stok
+
+  Pesanan (Order)             id, meja_id, outlet_id, nomor_pesanan, nama_pelanggan, no_hp, status, metode_bayar, subtotal, pajak, service_charge, diskon, total, dibuat_pada
+
+  Item Pesanan (Order Item)   id, order_id, menu_item_id, jumlah, catatan, harga_satuan
+
+  Pembayaran (Payment)        id, order_id, metode, referensi_gateway, status, dibayar_pada
+
+  Pengguna (User)             id, nama, email/username, password_hash, role, outlet_id, status_aktif
+
+  Promo/Voucher               id, kode, tipe (persen/nominal), nilai, syarat_minimum, periode_berlaku
+
+  Log Aktivitas               id, user_id, aksi, entitas_terkait, waktu
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+12. Integrasi Pihak Ketiga
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------
+  Integrasi                                   Fungsi                                             Catatan
+  ------------------------------------------- -------------------------------------------------- ------------------------------------------------------
+  Payment Gateway (Midtrans/Xendit/Tripay)    Generate QRIS dinamis, webhook status pembayaran   Perlu verifikasi signature webhook & idempotensi
+
+  Supabase Storage / Cloudinary               Penyimpanan & optimasi gambar menu                 Mendukung resize/transform otomatis untuk performa
+
+  Printer Thermal (Bluetooth/LAN)             Cetak struk pesanan                                Standar ESC/POS; perlu fallback jika printer offline
+
+  Firebase (opsional, alternatif WebSocket)   Sinkronisasi status real-time                      Alternatif jika tidak menggunakan WebSocket kustom
+  -----------------------------------------------------------------------------------------------------------------------------------------------------
+
+13. Kebutuhan Progressive Web App
+
+-   Web App Manifest lengkap (nama, ikon multi-resolusi, theme color, display: standalone).
+
+-   Service worker untuk caching aset statis dan pengalaman "Add to Home Screen" di Android & iOS.
+
+-   Splash screen kustom sesuai identitas merek restoran.
+
+-   Deteksi status koneksi dan tampilan pesan yang jelas saat offline.
+
+14. Pelaporan & Analitik
+
+-   Ringkasan omzet dan jumlah transaksi per periode (harian/mingguan/bulanan), dengan perbandingan periode sebelumnya.
+
+-   Daftar menu terlaris dan menu dengan performa rendah.
+
+-   Rincian transaksi per metode pembayaran (QRIS vs Kasir).
+
+-   Ekspor seluruh laporan di atas ke format PDF dan Excel.
+
+-   Filter laporan berdasarkan outlet (untuk skenario multi-outlet).
+
+15. Keamanan & Hak Akses (RBAC)
+
+  ------------------------------------------------------------------------------------------------
+  Modul                                   Admin     Kasir          Dapur     Runner    Pelanggan
+  --------------------------------------- --------- -------------- --------- --------- -----------
+  Kelola Menu/Meja/User                   Penuh     -              -         -         -
+
+  Lihat & Konfirmasi Pembayaran           Penuh     Penuh          -         -         -
+
+  Cetak Struk / Batalkan Transaksi        Penuh     Penuh          -         -         -
+
+  Kitchen Display (Mulai Masak/Selesai)   Lihat     -              Penuh     -         -
+
+  Daftar Antar (Sudah Diantar)            Lihat     -              -         Penuh     -
+
+  Laporan & Analitik                      Penuh     Riwayat saja   -         -         -
+
+  Pemesanan & Tracking Sendiri            -         -              -         -         Penuh
+  ------------------------------------------------------------------------------------------------
+
+16. Metrik Keberhasilan (Success Metrics)
+
+  --------------------------------------------------------------------------------------------------------------------------------------------
+  Metrik                                                               Target
+  -------------------------------------------------------------------- -----------------------------------------------------------------------
+  Waktu rata-rata dari checkout hingga Paid (QRIS)                     < 30 detik
+
+  Waktu rata-rata dari Paid hingga Ready                               Sesuai SLA dapur restoran (baseline diukur pasca-peluncuran)
+
+  Tingkat keberhasilan sinkronisasi real-time (tanpa refresh manual)   ≥ 99%
+
+  Uptime sistem pada jam operasional                                   ≥ 99.5%
+
+  Skor Lighthouse PWA (Performance/PWA)                                ≥ 90
+
+  Pengurangan kesalahan pesanan dibanding pencatatan manual            Signifikan (diukur pasca-peluncuran, target ≥ 50% penurunan komplain)
+  --------------------------------------------------------------------------------------------------------------------------------------------
+
+17. Asumsi & Batasan
+
+-   Setiap meja memiliki koneksi jaringan/WiFi restoran yang memadai untuk mengakses PWA.
+
+-   Pelanggan menggunakan perangkat dengan browser modern yang mendukung kamera untuk pemindaian QR Code.
+
+-   Payment gateway pihak ketiga yang dipilih (Midtrans/Xendit/Tripay) mendukung QRIS dinamis dan webhook real-time.
+
+-   Printer thermal yang digunakan kompatibel dengan protokol ESC/POS standar.
+
+-   Fase 1 difokuskan pada satu jenis outlet resto cepat saji; kebutuhan multi-outlet disiapkan arsitekturnya namun peluncuran penuh dapat menyusul pada fase berikutnya.
+
+18. Risiko & Mitigasi
+
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Risiko                                              Dampak                                                Mitigasi
+  --------------------------------------------------- ----------------------------------------------------- ---------------------------------------------------------------------------------
+  Webhook payment gateway gagal/terlambat             Status pesanan tidak ter-update, pelanggan menunggu   Mekanisme polling cadangan + retry & rekonsiliasi status berkala
+
+  Koneksi WebSocket terputus di sisi dashboard staf   Dashboard tidak menerima pesanan baru                 Auto-reconnect + indikator status koneksi + fallback polling
+
+  Beban tinggi saat jam sibuk (ribuan transaksi)      Latensi tinggi/response lambat                        Load testing, caching menu, horizontal scaling backend
+
+  QR Code disalahgunakan/dipalsukan                   Pesanan masuk ke meja yang salah                      Token unik per meja dengan validasi server-side, bukan sekadar nomor meja polos
+
+  Printer thermal offline saat cetak struk            Struk gagal cetak                                     Antrean cetak ulang & opsi cetak dari perangkat lain
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+19. Roadmap & Milestone (Usulan)
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Fase                Cakupan                                                                                                                                Estimasi
+  ------------------- -------------------------------------------------------------------------------------------------------------------------------------- -------------
+  Fase 1 — MVP        Customer PWA (QR, menu, checkout, QRIS/kasir), Dashboard Kasir & Dapur (KDS) dasar, Admin dasar (menu, meja, QR, user)                 6–8 minggu
+
+  Fase 2              Dashboard Runner, notifikasi real-time penuh, laporan & analitik, ekspor PDF/Excel, promo/voucher/diskon                               4–6 minggu
+
+  Fase 3              Multi-outlet, printer thermal Bluetooth/LAN, mode gelap penuh, optimasi performa & skalabilitas, PWA installable penuh (iOS/Android)   4–6 minggu
+
+  Fase 4 (Opsional)   Program loyalitas, integrasi pesan-antar pihak ketiga, analitik lanjutan (prediksi permintaan)                                         TBD
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+20. Lampiran — Glosarium
+
+  ------------------------------------------------------------------------------------------------------------------
+  Istilah          Definisi
+  ---------------- -------------------------------------------------------------------------------------------------
+  PWA              Progressive Web App — aplikasi web yang dapat diinstal dan berperilaku seperti aplikasi native.
+
+  KDS              Kitchen Display System — layar tampilan antrean pesanan untuk dapur.
+
+  QRIS             Standar kode QR pembayaran nasional Indonesia yang mendukung banyak penyedia pembayaran.
+
+  Webhook          Mekanisme notifikasi otomatis dari payment gateway ke sistem saat status pembayaran berubah.
+
+  RBAC             Role-Based Access Control — pengendalian akses berdasarkan peran pengguna.
+
+  Runner           Staf yang bertugas mengantarkan pesanan yang telah siap dari dapur ke meja pelanggan.
+  ------------------------------------------------------------------------------------------------------------------
